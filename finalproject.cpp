@@ -147,10 +147,16 @@ public:
     }
 
     void displayContents() {
-        for (size_t i = 0; i < contents.size(); ++i) {
-            cout << i << ": " << contents[i] << endl;
-        }
+    if (contents.empty()) {
+        cout << "No contents available for this course.\n";
+        return;
     }
+
+    for (size_t i = 0; i < contents.size(); ++i) {
+        cout << i + 1 << ": " << contents[i] << endl;  // Display 1-based index
+    }
+}
+
 
     void addGrade(string studentEmail, int grade) {
         grades.push_back({studentEmail, grade});
@@ -386,6 +392,7 @@ void Admin::manageCourses() {
                 break;
             case 2:
                 deleteCourse();
+                system("pause");
                 break;
             case 3:
                 editCourse();
@@ -425,17 +432,28 @@ void Admin::deleteCourse() {
         system("pause");  // Wait for the user to see the message
         return;  // Exit the function if there are no courses
     }
-
+    
     // Display the list of courses if there are courses
     LMSManager::getInstance()->displayCourses();
     int index;
     cout << "Enter course index to delete: ";
     cin >> index;
-
-    try {
-        LMSManager::getInstance()->removeCourse(index);
-        cout << "Course deleted successfully.\n";
+    
+     try {
+        // Validate user input and adjust for 0-based indexing
+        if (index < 1 || index > courses.size()) {
+            throw out_of_range("Invalid index");
+        }
+        
+        // Subtract 1 to convert to 0-based index
+        Course courseToDelete = courses[index - 1];  // Get a copy of the course
+        
+        LMSManager::getInstance()->removeCourse(index - 1);  // Pass 0-based indexad
+        cout << "Successfully deleted course: " << courseToDelete.getCourseName() << endl;
     } catch (InvalidCourseIndexException&) {
+        cout << "Invalid course index.\n";
+    } catch (out_of_range&) {
+        // Handle case where index is out of vector bounds
         cout << "Invalid course index.\n";
     }
 }
@@ -566,6 +584,7 @@ void Teacher::displayMenu() {
                 break;
             case 3:
                 addGrade();
+                system("pause");
                 break;
             case 4:
                 cout << "Logging out...\n";
@@ -707,20 +726,42 @@ void Teacher::manageCourses() {
 
 void Teacher::viewCourse() {
     system("cls");  // Clear screen
-    LMSManager::getInstance()->displayCourses();
+
+    vector<Course>& courses = LMSManager::getInstance()->getCourses();
+    if (courses.empty()) {
+        cout << "No courses available to view.\n";
+        system("pause");
+        return;  // Exit the function if there are no courses
+    }
+
+    // Display the list of courses with 1-based indexing
+    cout << "Courses:\n";
+    for (size_t i = 0; i < courses.size(); ++i) {
+        cout << i + 1 << ". " << courses[i].getCourseName() << endl;
+    }
+
     int index;
-    cout << "Enter course index to view: ";
+    cout << "Enter course index to view (1-based): ";
     cin >> index;
 
     try {
-        Course& course = LMSManager::getInstance()->getCourse(index);
+        // Validate and adjust for 0-based indexing
+        if (index < 1 || index > courses.size()) {
+            throw out_of_range("Invalid index");
+        }
+
+        // Get the course using 0-based index
+        Course& course = LMSManager::getInstance()->getCourse(index - 1);
         cout << "Viewing course: " << course.getCourseName() << endl;
         course.displayContents();
         system("pause");  // Wait for the user to see the course contents
     } catch (InvalidCourseIndexException&) {
         cout << "Invalid course index.\n";
+    } catch (out_of_range&) {
+        cout << "Invalid course index.\n";
     }
 }
+
 
 void Teacher::viewReports() {
     system("cls");  // Clear screen
