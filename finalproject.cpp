@@ -450,8 +450,10 @@ void Admin::enrollStudent() {
         
         cout << "Student enrolled successfully and account created.\n";
         cout << "Username: " << newStudent->getEmail() << endl;
+        system("pause");
     } catch (const exception& e) {
         cout << e.what() << endl;
+        system("pause");
     }
 }
 
@@ -726,6 +728,7 @@ void Admin::viewReports() {
         course.displayStudents();
         cout << "Grades:\n";
         course.displayGrades();
+        system("pause");   
         cout << "----------------------\n";
     }
     system("pause");
@@ -1064,6 +1067,7 @@ void Teacher::viewReports() {
             course.displayStudents();
             cout << "Grades:\n";
             course.displayGrades();
+        system("pause"); 
             cout << "----------------------\n";
         }
     }
