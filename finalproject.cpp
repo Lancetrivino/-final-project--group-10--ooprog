@@ -117,7 +117,9 @@ public:
     void manageCourses();
     void viewCourse();
     void viewReports();
-    void addGrade();  // Keep only one implementation of adding grades
+    void addGrade(); 
+    void addContent(); 
+    void viewAssignedStudents();
 };
 
 // Student class
@@ -478,6 +480,21 @@ void Admin::addCourse() {
     cout << "Enter teacher's email: ";
     cin >> teacherEmail;
 
+    // Check if the teacher's email exists among the registered users
+    bool teacherExists = false;
+    for (const auto& user : users) {
+        if (user->getEmail() == teacherEmail) {
+            teacherExists = true;
+            break;
+        }
+    }
+
+    if (!teacherExists) {
+        cout << "Error: The email does not belong to a registered teacher.\n";
+        system("pause"); // Wait for user to see the message
+        return; // Exit the function if the email is not valid
+    }
+
     // Ensure teacher is not managing multiple subjects
     vector<Course>& courses = LMSManager::getInstance()->getCourses();
     for (const auto& course : courses) {
@@ -493,7 +510,6 @@ void Admin::addCourse() {
     cout << "Course added successfully.\n";
     system("pause");
 }
-
 void Admin::deleteCourse() {
     // Check if there are any courses
     vector<Course>& courses = LMSManager::getInstance()->getCourses();
@@ -640,28 +656,25 @@ void Teacher::displayMenu() {
         cout << "\nTeacher Menu:\n";
         cout << "1. Manage Courses\n";
         cout << "2. View Reports\n";
-        cout << "3. Add Grade\n";
-        cout << "4. Log Out\n";
+        cout << "3. Log Out\n";
 
-        choice = Validator::getValidatedIntInput("Enter choice (1-4): ", 1, 4);
+        choice = Validator::getValidatedIntInput("Enter choice (1-3): ", 1, 3);
 
         switch (choice) {
             case 1:
                 manageCourses();
                 break;
+
             case 2:
                 viewReports();
                 break;
+
             case 3:
-                addGrade();
-                system("pause");
-                break;
-            case 4:
                 cout << "Logging out...\n";
                 system("pause");
                 break;
         }
-    } while (choice != 4);
+    } while (choice != 3);
 }
 
 void Teacher::addGrade() {
@@ -724,7 +737,7 @@ void Teacher::manageCourses() {
         cout << "1. View Course\n";
         cout << "2. Add Content\n";
         cout << "3. Add Grade\n";
-        cout << "4. Display Students\n";
+        cout << "4. View Assigned Students\n";
         cout << "5. Back\n";
 
         choice = Validator::getValidatedIntInput("Enter choice (1-5): ", 1, 5);
@@ -733,56 +746,15 @@ void Teacher::manageCourses() {
             case 1:
                 viewCourse();
                 break;
-            case 2: {
-                LMSManager::getInstance()->displayCourses();
-                vector<Course>& courses = LMSManager::getInstance()->getCourses();
-                if (courses.empty()) {
-                    cout << "No courses available.\n";
-                    system("pause");
-                    break;
-                }
-                int index = Validator::getValidatedIntInput(
-                    "Enter course index (1-" + to_string(courses.size()) + "): ",
-                    1, courses.size());
-                
-                try {
-                    Course& course = LMSManager::getInstance()->getCourse(index - 1);
-                    string content;
-                    cout << "Enter the content to add: ";
-                    cin.ignore();
-                    getline(cin, content);
-                    course.addContent(content);
-                    cout << "Content added to the course: " << course.getCourseName() << endl;
-                    system("pause");
-                } catch (const exception& e) {
-                    cout << e.what() << endl;
-                    system("pause");
-                }
+            case 2: 
+                addContent();
                 break;
-            }
+                
             case 3:
                 addGrade();
                 break;
             case 4: {
-                LMSManager::getInstance()->displayCourses();
-                vector<Course>& courses = LMSManager::getInstance()->getCourses();
-                if (courses.empty()) {
-                    cout << "No courses available.\n";
-                    system("pause");
-                    break;
-                }
-                int index = Validator::getValidatedIntInput(
-                    "Enter course index (1-" + to_string(courses.size()) + "): ",
-                    1, courses.size());
-                
-                try {
-                    Course& course = LMSManager::getInstance()->getCourse(index - 1);
-                    course.displayStudents();
-                    system("pause");
-                } catch (const exception& e) {
-                    cout << e.what() << endl;
-                    system("pause");
-                }
+                viewAssignedStudents();
                 break;
             }
             case 5:
@@ -793,6 +765,78 @@ void Teacher::manageCourses() {
     } while (choice != 5);
 }
 
+
+void Teacher::viewAssignedStudents() {
+    system("cls");
+    LMSManager::getInstance()->displayCourses();
+    vector<Course>& courses = LMSManager::getInstance()->getCourses();
+    
+    if (courses.empty()) {
+        cout << "No courses available.\n";
+        system("pause");
+        return;
+    }
+
+    int index = Validator::getValidatedIntInput(
+        "Enter course index (1-" + to_string(courses.size()) + "): ",
+        1, courses.size());
+
+    try {
+        Course& course = LMSManager::getInstance()->getCourse(index - 1);
+
+        if (course.getTeacherEmail() != getEmail()) {
+            cout << "Error: You are not authorized to view students in this course.\n";
+            system("pause");
+            return;
+        }
+
+        course.displayStudents();
+        system("pause");
+    } catch (const exception& e) {
+        cout << e.what() << endl;
+        system("pause");
+    }
+}
+void Teacher::addContent() {
+    system("cls");
+    LMSManager::getInstance()->displayCourses(); // Display available courses
+    vector<Course>& courses = LMSManager::getInstance()->getCourses(); // Get all courses
+
+    if (courses.empty()) {
+        cout << "No courses available.\n";
+        system("pause");
+        return; // Exit if no courses are available
+    }
+
+    int index = Validator::getValidatedIntInput(
+        "Enter course index (1-" + to_string(courses.size()) + "): ",
+        1, courses.size());
+
+    try {
+        Course& course = LMSManager::getInstance()->getCourse(index - 1); // Get the selected course
+
+        // Check if the teacher is assigned to this course
+        if (course.getTeacherEmail() != getEmail()) {
+            cout << "Error: You are not authorized to add content to this course.\n";
+            system("pause");
+            return;
+        }
+
+        string content;
+        cout << "Enter the content to add: ";
+        cin.ignore();
+        getline(cin, content);
+        
+        // Add content to the course
+        course.addContent(content); // Assuming addContent method is properly defined in Course
+        
+        cout << "Content added to the course: " << course.getCourseName() << endl;
+        system("pause");
+    } catch (const exception& e) {
+        cout << e.what() << endl;
+        system("pause");
+    }
+}
 
 void Teacher::viewCourse() {
     system("cls");  // Clear screen
