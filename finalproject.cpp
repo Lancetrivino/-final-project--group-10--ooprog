@@ -13,6 +13,13 @@ class Admin;
 class Teacher;
 class Student;
 
+class UserActionStrategy {
+public:
+    virtual void execute() = 0; // Pure virtual function
+    virtual ~UserActionStrategy() = default; // Virtual destructor
+};
+
+
 class InvalidCourseIndexException : public runtime_error {
 public:
     InvalidCourseIndexException() : runtime_error("Invalid course index!") {}
@@ -61,23 +68,35 @@ public:
         return input;
     }
 };
+
 // Base User class
 class User {
 protected:
     string username;
     string email;
     string password;
+    unique_ptr<UserActionStrategy> actionStrategy; // Strategy member
 
 public:
     User(string username, string email, string password)
         : username(username), email(email), password(password) {}
 
-    virtual void displayMenu() = 0;
-    virtual ~User() = default;
-    string getEmail() const { return email; }  // Made const
-    string getPassword() const { return password; }  // Made const
-};
+    void setActionStrategy(UserActionStrategy* strategy) {
+        actionStrategy.reset(strategy); // Set the strategy
+    }
 
+    void performAction() {
+        if (actionStrategy) {
+            actionStrategy->execute(); // Execute the strategy
+        }
+    }
+
+    virtual void displayMenu() = 0; // Pure virtual function
+    virtual ~User() = default; // Virtual destructor
+
+    string getEmail() const { return email; }
+    string getPassword() const { return password; }
+};
 
 class ValidationException : public runtime_error {
 public:
@@ -94,10 +113,10 @@ class LMSManager;
 // Admin class
 class Admin : public User {
 public:
-    Admin(string username, string email, string password)
+     Admin(string username, string email, string password)
         : User(username, email, password) {}
 
-    void displayMenu();
+    void displayMenu() override;
     void manageCourses();
     void addCourse();
     void deleteCourse();
@@ -134,6 +153,41 @@ public:
     void enrollInCourse();
 };
 
+
+// Concrete Strategies
+class AdminActions : public UserActionStrategy {
+    Admin* admin;
+
+public:
+    AdminActions(Admin* admin) : admin(admin) {}
+
+    void execute() override {
+        admin->displayMenu(); // Call the Admin menu
+    }
+};
+
+class TeacherActions : public UserActionStrategy {
+    Teacher* teacher;
+
+public:
+    TeacherActions(Teacher* teacher) : teacher(teacher) {}
+
+    void execute() override {
+        teacher->displayMenu(); // Call the Teacher menu
+    }
+};
+
+class StudentActions : public UserActionStrategy {
+    Student* student;
+
+public:
+    StudentActions(Student* student) : student(student) {}
+
+    void execute() override {
+        student->displayMenu(); // Call the Student menu
+    }
+};
+
 // Course class
 class Course {
 private:
@@ -142,6 +196,7 @@ private:
     vector<string> contents;
     vector<pair<string, int>> grades;
     vector<string> enrolledStudents;
+     
 
 public:
     Course(string courseName, string teacherEmail) {
@@ -171,13 +226,15 @@ public:
 
     void displayContents() const {
         if (contents.empty()) {
-            cout << "No contents available for this course.\n";
-            return;
-        }
-        for (size_t i = 0; i < contents.size(); ++i) {
-            cout << i + 1 << ": " << contents[i] << endl;
-        }
+        cout << "No content available for this course.\n";
+        return;
     }
+
+    cout << "Course Contents:\n";
+    for (const auto& content : contents) {
+        cout << "- " << content << endl;
+    }
+}
 
     void addGrade(const string& studentEmail, int grade) {
         if (!Validator::isValidEmail(studentEmail)) {
@@ -192,6 +249,7 @@ public:
     const vector<pair<string, int>>& getGrades() const {
         return grades;
     }
+    
 
     void displayGrades() const {
         for (const auto& grade : grades) {
@@ -259,6 +317,7 @@ public:
     void addCourse(const Course& course) {
         courses.push_back(course);
     }
+    
 
     Course& getCourse(int index) {
         if (!Validator::isValidIndex(index, courses.size())) {
@@ -474,9 +533,11 @@ void Admin::manageCourses() {
 void Admin::addCourse() {
     system("cls");
     string courseName, teacherEmail;
+    
     cout << "Enter course name: ";
     cin.ignore();
     getline(cin, courseName);
+    
     cout << "Enter teacher's email: ";
     cin >> teacherEmail;
 
@@ -490,9 +551,29 @@ void Admin::addCourse() {
     }
 
     if (!teacherExists) {
+        char addTeacher;
         cout << "Error: The email does not belong to a registered teacher.\n";
-        system("pause"); // Wait for user to see the message
-        return; // Exit the function if the email is not valid
+        cout << "Would you like to register this teacher? (y/n): ";
+        cin >> addTeacher;
+        cin.ignore(); 
+
+        if (addTeacher == 'y' || addTeacher == 'Y') {
+            string teacherName, teacherPassword;
+
+            cout << "Enter teacher's name: ";
+            getline(cin, teacherName);
+            cout << "Enter teacher's password: ";
+            getline(cin, teacherPassword);
+
+            // Create a new Teacher object and add to the users
+            auto newTeacher = make_shared<Teacher>(teacherName, teacherEmail, teacherPassword);
+            users.push_back(newTeacher);
+            cout << "Teacher registered successfully: " << teacherName << " (" << teacherEmail << ")\n";
+        } else {
+            cout << "Course addition canceled.\n";
+            system("pause"); // Wait for user to see the message
+            return; // Exit the function if the admin does not want to register the teacher
+        }
     }
 
     // Ensure teacher is not managing multiple subjects
@@ -505,6 +586,7 @@ void Admin::addCourse() {
         }
     }
 
+    // Proceed to add the course
     Course newCourse(courseName, teacherEmail);
     LMSManager::getInstance()->addCourse(newCourse);
     cout << "Course added successfully.\n";
@@ -920,6 +1002,7 @@ void Student::displayMenu() {
                 break;
             case 2:
                 viewGrades();
+                system("pause");
                 break;
             case 3:
                 cout << "Logging out...\n";
@@ -966,7 +1049,9 @@ void Student::viewEnrolledCourses() {
     // Display course contents
     try {
         Course& selectedCourse = enrolledCourses[index - 1];
+        cout << "Selected course: " << selectedCourse.getCourseName() << endl; // Debugging line
         selectedCourse.displayContents();
+        system("pause");
     } catch (const exception& e) {
         cout << "Error viewing course contents: " << e.what() << endl;
     }
@@ -1005,7 +1090,7 @@ void Student::viewGrades() {
     );
 
     if (index == 0) return;
-
+    
     // Display course grades
     try {
         Course& selectedCourse = enrolledCourses[index - 1];
@@ -1080,7 +1165,7 @@ void Student::enrollInCourse() {
 
 // Main function for login and menu display
 int main() {
-    try {
+   try {
         LMSManager* lms = LMSManager::getInstance();
 
         Course course1("Mathematics", "teacher1@example.com");
@@ -1097,7 +1182,7 @@ int main() {
         users.push_back(make_shared<Admin>("admin1", "admin1@example.com", "adminpass"));
         users.push_back(make_shared<Teacher>("teacher1", "teacher1@example.com", "teacherpass"));
         users.push_back(make_shared<Teacher>("teacher2", "teacher2@example.com", "teacherpass"));
-        users.push_back(make_shared<Teacher>("teacher3", "teacher3@example.com", "teacherpass"));
+        
 
         string email, password;
         bool loggedIn = false;
@@ -1121,7 +1206,17 @@ int main() {
                 for (const auto& user : users) {
                     if (user->getEmail() == email && user->getPassword() == password) {
                         loggedIn = true;
-                        user->displayMenu();
+
+                        // Set the strategy based on user type
+                        if (auto admin = dynamic_cast<Admin*>(user.get())) {
+                            user->setActionStrategy(new AdminActions(admin));
+                        } else if (auto teacher = dynamic_cast<Teacher*>(user.get())) {
+                            user->setActionStrategy(new TeacherActions(teacher));
+                        } else if (auto student = dynamic_cast<Student*>(user.get())) {
+                            user->setActionStrategy(new StudentActions(student));
+                        }
+
+                        user->performAction(); // Perform the action using the strategy
                         break;
                     }
                 }
