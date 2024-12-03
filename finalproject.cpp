@@ -1083,7 +1083,6 @@ int main() {
     try {
         LMSManager* lms = LMSManager::getInstance();
 
-        // Sample data initialization
         Course course1("Mathematics", "teacher1@example.com");
         course1.addContent("Introduction to Algebra");
         course1.addContent("Advanced Calculus");
@@ -1095,11 +1094,10 @@ int main() {
         lms->addCourse(course1);
         lms->addCourse(course2);
 
-        // Initialize users
-        vector<shared_ptr<User>> users;
         users.push_back(make_shared<Admin>("admin1", "admin1@example.com", "adminpass"));
         users.push_back(make_shared<Teacher>("teacher1", "teacher1@example.com", "teacherpass"));
         users.push_back(make_shared<Teacher>("teacher2", "teacher2@example.com", "teacherpass"));
+        users.push_back(make_shared<Teacher>("teacher3", "teacher3@example.com", "teacherpass"));
 
         string email, password;
         bool loggedIn = false;
