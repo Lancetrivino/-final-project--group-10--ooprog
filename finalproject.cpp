@@ -8,6 +8,11 @@
 
 using namespace std;
 
+// Forward declarations
+class Admin;
+class Teacher;
+class Student;
+
 class InvalidCourseIndexException : public runtime_error {
 public:
     InvalidCourseIndexException() : runtime_error("Invalid course index!") {}
@@ -62,13 +67,21 @@ protected:
     string username;
     string email;
     string password;
+
 public:
     User(string username, string email, string password)
         : username(username), email(email), password(password) {}
 
-    virtual void displayMenu() = 0;  // Abstract method
-    string getPassword() { return password; }
-    string getEmail() { return email; }
+    virtual void displayMenu() = 0;
+    virtual ~User() = default;
+    string getEmail() const { return email; }  // Made const
+    string getPassword() const { return password; }  // Made const
+};
+
+
+class ValidationException : public runtime_error {
+public:
+    ValidationException(const string& msg) : runtime_error(msg) {}
 };
 
 using UserPtr = shared_ptr<User>;
@@ -84,7 +97,7 @@ public:
     Admin(string username, string email, string password)
         : User(username, email, password) {}
 
-    void displayMenu() override;
+    void displayMenu();
     void manageCourses();
     void addCourse();
     void deleteCourse();
@@ -125,144 +138,156 @@ private:
     string courseName;
     string teacherEmail;
     vector<string> contents;
-    vector<pair<string, int>> grades;  // student email and grade
+    vector<pair<string, int>> grades;
     vector<string> enrolledStudents;
 
 public:
-    Course(string courseName, string teacherEmail)
-        : courseName(courseName), teacherEmail(teacherEmail) {}
+    Course(string courseName, string teacherEmail) {
+        if (!Validator::isValidString(courseName)) {
+            throw ValidationException("Invalid course name");
+        }
+        if (!Validator::isValidEmail(teacherEmail)) {
+            throw ValidationException("Invalid teacher email");
+        }
+        this->courseName = courseName;
+        this->teacherEmail = teacherEmail;
+    }
 
     void addContent(string content) {
         if (!Validator::isValidString(content)) {
-            throw runtime_error("Invalid content: Content cannot be empty or too long");
+            throw ValidationException("Invalid content");
         }
         contents.push_back(content);
     }
 
     void removeContent(int index) {
-        if (index < 0 || index >= contents.size()) {
+        if (!Validator::isValidIndex(index, contents.size())) {
             throw InvalidCourseIndexException();
         }
         contents.erase(contents.begin() + index);
     }
 
-    void displayContents() {
-    if (contents.empty()) {
-        cout << "No contents available for this course.\n";
-        return;
+    void displayContents() const {
+        if (contents.empty()) {
+            cout << "No contents available for this course.\n";
+            return;
+        }
+        for (size_t i = 0; i < contents.size(); ++i) {
+            cout << i + 1 << ": " << contents[i] << endl;
+        }
     }
 
-    for (size_t i = 0; i < contents.size(); ++i) {
-        cout << i + 1 << ": " << contents[i] << endl;  // Display 1-based index
-    }
-}
-
-
-    void addGrade(string studentEmail, int grade) {
+    void addGrade(const string& studentEmail, int grade) {
+        if (!Validator::isValidEmail(studentEmail)) {
+            throw ValidationException("Invalid student email");
+        }
+        if (!Validator::isValidGrade(grade)) {
+            throw ValidationException("Invalid grade");
+        }
         grades.push_back({studentEmail, grade});
     }
 
-    vector<pair<string, int>>& getGrades() {  // Return reference to grades
+    const vector<pair<string, int>>& getGrades() const {
         return grades;
     }
 
-    void displayGrades() {
-        for (auto& grade : grades) {
+    void displayGrades() const {
+        for (const auto& grade : grades) {
             cout << grade.first << ": " << grade.second << "%" << endl;
         }
     }
 
-    void enrollStudent(string studentEmail) {
-        enrolledStudents.push_back(studentEmail);
+    void enrollStudent(const string& studentEmail) {
+    if (!Validator::isValidEmail(studentEmail)) {
+        throw ValidationException("Invalid student email");
     }
 
-    void removeStudent(string studentEmail) {
-        for (auto it = enrolledStudents.begin(); it != enrolledStudents.end(); ++it) {
-            if (*it == studentEmail) {
-                enrolledStudents.erase(it);
-                break;
-            }
+    // Manually check if the student is already enrolled
+    for (const auto& enrolledEmail : enrolledStudents) {
+        if (enrolledEmail == studentEmail) {
+            throw ValidationException("Student already enrolled");
         }
     }
 
-    void displayStudents() {
-        for (auto& student : enrolledStudents) {
+    enrolledStudents.push_back(studentEmail); // Enroll the student
+}
+
+   void removeStudent(const string& studentEmail) {
+    // Manually search for the studentEmail in the enrolledStudents vector
+    for (auto it = enrolledStudents.begin(); it != enrolledStudents.end(); ++it) {
+        if (*it == studentEmail) {
+            enrolledStudents.erase(it); // Remove the student
+            return; // Exit the function after removing
+        }
+    }
+    
+    // If we reach here, the student was not found
+    throw ValidationException("Student not found");
+}
+
+    void displayStudents() const {
+        for (const auto& student : enrolledStudents) {
             cout << student << endl;
         }
     }
 
-    string getCourseName() { return courseName; }
-    string getTeacherEmail() { return teacherEmail; }
-
-    vector<string>& getStudents() {
-    return enrolledStudents;
-}
-
-    const vector<string>& getContents() const {
-        return contents;
-    }
+    string getCourseName() const { return courseName; }
+    string getTeacherEmail() const { return teacherEmail; }
+    const vector<string>& getStudents() const { return enrolledStudents; }
+    const vector<string>& getContents() const { return contents; }
 };
+
 
 
 // LMSManager class (Singleton)
 class LMSManager {
 private:
     vector<Course> courses;
-    static LMSManager* instance;
-    LMSManager() {}
+    static unique_ptr<LMSManager> instance;
+    LMSManager() = default;
 
 public:
     static LMSManager* getInstance() {
         if (!instance) {
-            instance = new LMSManager();
+            instance = unique_ptr<LMSManager>(new LMSManager());
         }
-        return instance;
+        return instance.get();
     }
 
-    // Add this static cleanup method
-    static void cleanup() {
-        delete instance;
-        instance = nullptr;
-    }
-
-    void addCourse(Course course) {
+    void addCourse(const Course& course) {
         courses.push_back(course);
     }
 
     Course& getCourse(int index) {
-        if (index < 0 || index >= courses.size()) {
+        if (!Validator::isValidIndex(index, courses.size())) {
             throw InvalidCourseIndexException();
         }
         return courses[index];
     }
 
     void removeCourse(int index) {
-        if (index < 0 || index >= courses.size()) {
+        if (!Validator::isValidIndex(index, courses.size())) {
             throw InvalidCourseIndexException();
         }
         courses.erase(courses.begin() + index);
     }
 
-    void displayCourses() {
-    if (courses.empty()) {
-        cout << "There are no courses available.\n";
-        return;
+    void displayCourses() const {
+        if (courses.empty()) {
+            cout << "There are no courses available.\n";
+            return;
+        }
+        for (size_t i = 0; i < courses.size(); ++i) {
+            cout << i + 1 << ": " << courses[i].getCourseName()
+                 << " (Teacher: " << courses[i].getTeacherEmail() << ")" << endl;
+        }
     }
 
-    for (size_t i = 0; i < courses.size(); ++i) {
-        cout << i + 1 << ": " << courses[i].getCourseName()
-             << " (Teacher: " << courses[i].getTeacherEmail() << ")" << endl;
-    }
-}
-
-
-    vector<Course>& getCourses() {
-        return courses;
-    }
+    vector<Course>& getCourses() { return courses; }
 };
 
 // Initialize static member of LMSManager
-LMSManager* LMSManager::instance = nullptr;
+unique_ptr<LMSManager> LMSManager::instance;
 
 // Admin class implementation
 void Admin::displayMenu() {
@@ -315,19 +340,54 @@ void Admin::enrollStudent() {
         Course& course = LMSManager::getInstance()->getCourse(userIndex - 1);
         
         string studentEmail;
+        string studentPassword;
         bool validEmail = false;
+        
+        // Email validation
         do {
             cout << "Enter student's email: ";
             cin >> studentEmail;
             if (Validator::isValidEmail(studentEmail)) {
+                
+                // Check if student already exists
+                bool studentExists = false;
+                for (const auto& user : users) {
+                    if (user->getEmail() == studentEmail) {
+                        studentExists = true;
+                        break;
+                    }
+                }
+                
+                if (studentExists) {
+                    cout << "Student with this email already exists. Cannot create a duplicate account.\n";
+                    return;
+                }
+                
                 validEmail = true;
             } else {
                 cout << "Invalid email format. Please try again.\n";
             }
         } while (!validEmail);
         
+        // Password input
+        cout << "Enter password for the student: ";
+        cin >> studentPassword;
+        
+        // Create new student
+        UserPtr newStudent = make_shared<Student>(
+            studentEmail.substr(0, studentEmail.find('@')),  // Use email prefix as username
+            studentEmail, 
+            studentPassword
+        );
+        
+        // Add to users list
+        users.push_back(newStudent);
+        
+        // Enroll in the course
         course.enrollStudent(studentEmail);
-        cout << "Student enrolled successfully.\n";
+        
+        cout << "Student enrolled successfully and account created.\n";
+        cout << "Username: " << newStudent->getEmail() << endl;
     } catch (const exception& e) {
         cout << e.what() << endl;
     }
@@ -410,7 +470,7 @@ void Admin::manageCourses() {
 }
 
 void Admin::addCourse() {
-    system("cls");  // Clear screen
+    system("cls");
     string courseName, teacherEmail;
     cout << "Enter course name: ";
     cin.ignore();
@@ -418,10 +478,20 @@ void Admin::addCourse() {
     cout << "Enter teacher's email: ";
     cin >> teacherEmail;
 
+    // Ensure teacher is not managing multiple subjects
+    vector<Course>& courses = LMSManager::getInstance()->getCourses();
+    for (const auto& course : courses) {
+        if (course.getTeacherEmail() == teacherEmail) {
+            cout << "Error: Teacher is already assigned to another course.\n";
+            system("pause");
+            return;
+        }
+    }
+
     Course newCourse(courseName, teacherEmail);
     LMSManager::getInstance()->addCourse(newCourse);
     cout << "Course added successfully.\n";
-    system("pause");  // Pause the console to see the message
+    system("pause");
 }
 
 void Admin::deleteCourse() {
@@ -796,10 +866,9 @@ void Student::displayMenu() {
         cout << "\nStudent Menu:\n";
         cout << "1. View Enrolled Courses\n";
         cout << "2. View Grades\n";
-        cout << "3. Enroll in a Course\n";
-        cout << "4. Log Out\n";
+        cout << "3. Log Out\n";
 
-        choice = Validator::getValidatedIntInput("Enter choice (1-4): ", 1, 4);
+        choice = Validator::getValidatedIntInput("Enter choice (1-3): ", 1, 3);
 
         switch (choice) {
             case 1:
@@ -809,144 +878,233 @@ void Student::displayMenu() {
                 viewGrades();
                 break;
             case 3:
-                enrollInCourse();
-                break;
-            case 4:
                 cout << "Logging out...\n";
                 system("pause");
                 break;
         }
-    } while (choice != 4);
+    } while (choice != 3);
+}
+
+void Student::viewEnrolledCourses() {
+    vector<Course>& allCourses = LMSManager::getInstance()->getCourses();
+    vector<Course> enrolledCourses;
+
+    // Find courses where the student is enrolled
+    for (Course& course : allCourses) {
+        for (const string& studentEmail : course.getStudents()) {
+            if (studentEmail == email) {
+                enrolledCourses.push_back(course);
+                break;
+            }
+        }
+    }
+
+    // Check if student is enrolled in any courses
+    if (enrolledCourses.empty()) {
+        cout << "You are not enrolled in any courses.\n";
+        return;
+    }
+
+    // Display enrolled courses
+    cout << "Your Enrolled Courses:\n";
+    for (size_t i = 0; i < enrolledCourses.size(); ++i) {
+        cout << i + 1 << ": " << enrolledCourses[i].getCourseName() 
+             << " (Teacher: " << enrolledCourses[i].getTeacherEmail() << ")\n";
+    }
+
+    int index = Validator::getValidatedIntInput(
+        "Enter course index to view content (or 0 to go back): ", 
+        0, enrolledCourses.size()
+    );
+
+    if (index == 0) return;
+
+    // Display course contents
+    try {
+        Course& selectedCourse = enrolledCourses[index - 1];
+        selectedCourse.displayContents();
+    } catch (const exception& e) {
+        cout << "Error viewing course contents: " << e.what() << endl;
+    }
+}
+
+void Student::viewGrades() {
+    vector<Course>& allCourses = LMSManager::getInstance()->getCourses();
+    vector<Course> enrolledCourses;
+
+    // Find courses where the student is enrolled
+    for (Course& course : allCourses) {
+        for (const string& studentEmail : course.getStudents()) {
+            if (studentEmail == email) {
+                enrolledCourses.push_back(course);
+                break;
+            }
+        }
+    }
+
+    // Check if student is enrolled in any courses
+    if (enrolledCourses.empty()) {
+        cout << "You are not enrolled in any courses.\n";
+        return;
+    }
+
+    // Display enrolled courses
+    cout << "Your Enrolled Courses:\n";
+    for (size_t i = 0; i < enrolledCourses.size(); ++i) {
+        cout << i + 1 << ": " << enrolledCourses[i].getCourseName() 
+             << " (Teacher: " << enrolledCourses[i].getTeacherEmail() << ")\n";
+    }
+
+    int index = Validator::getValidatedIntInput(
+        "Enter course index to view grades (or 0 to go back): ", 
+        0, enrolledCourses.size()
+    );
+
+    if (index == 0) return;
+
+    // Display course grades
+    try {
+        Course& selectedCourse = enrolledCourses[index - 1];
+        
+        // Find and display only this student's grade
+        bool gradeFound = false;
+        for (auto& grade : selectedCourse.getGrades()) {
+            if (grade.first == email) {
+                cout << "Your Grade in " << selectedCourse.getCourseName() 
+                     << ": " << grade.second << "%" << endl;
+                gradeFound = true;
+                break;
+            }
+        }
+
+        if (!gradeFound) {
+            cout << "No grade available for this course.\n";
+        }
+    } catch (const exception& e) {
+        cout << "Error viewing grades: " << e.what() << endl;
+    }
 }
 
 void Student::enrollInCourse() {
     vector<Course>& courses = LMSManager::getInstance()->getCourses();
-    if (courses.empty()) {
+    vector<Course> unenrolledCourses;
+
+    // Find courses student is not already enrolled in
+    for (Course& course : courses) {
+        bool alreadyEnrolled = false;
+        for (const string& studentEmail : course.getStudents()) {
+            if (studentEmail == email) {
+                alreadyEnrolled = true;
+                break;
+            }
+        }
+        
+        if (!alreadyEnrolled) {
+            unenrolledCourses.push_back(course);
+        }
+    }
+
+    // Check if there are courses available for enrollment
+    if (unenrolledCourses.empty()) {
         cout << "No courses available for enrollment.\n";
         return;
     }
 
-    LMSManager::getInstance()->displayCourses();
+    // Display unenrolled courses
+    cout << "Available Courses:\n";
+    for (size_t i = 0; i < unenrolledCourses.size(); ++i) {
+        cout << i + 1 << ": " << unenrolledCourses[i].getCourseName() 
+             << " (Teacher: " << unenrolledCourses[i].getTeacherEmail() << ")\n";
+    }
+
     int courseIndex = Validator::getValidatedIntInput(
-        "Enter course index (1-" + to_string(courses.size()) + "): ",
-        1, courses.size());
+        "Enter course index to enroll (or 0 to go back): ", 
+        0, unenrolledCourses.size()
+    );
+
+    if (courseIndex == 0) return;
 
     try {
-        Course& course = LMSManager::getInstance()->getCourse(courseIndex - 1);
-        
-        // Check if already enrolled
-        for (const string& student : course.getStudents()) {
-            if (student == email) {
-                cout << "You are already enrolled in this course.\n";
-                return;
-            }
-        }
-
+        Course& course = unenrolledCourses[courseIndex - 1];
         course.enrollStudent(email);
-        cout << "Successfully enrolled in the course.\n";
+        cout << "Successfully enrolled in the course: " 
+             << course.getCourseName() << endl;
     } catch (const exception& e) {
         cout << e.what() << endl;
     }
 }
 
-void Student::viewGrades() {
-    LMSManager::getInstance()->displayCourses();
-    int index;
-    cout << "Enter course index to view grades: ";
-    cin >> index;
-
-    try {
-        Course& course = LMSManager::getInstance()->getCourse(index);
-        course.displayGrades();
-    } catch (InvalidCourseIndexException&) {
-        cout << "Invalid course index.\n";
-    }
-}
-void Student::viewEnrolledCourses() {
-    LMSManager::getInstance()->displayCourses();
-    int index;
-    cout << "Enter course index to view content: ";
-    cin >> index;
-
-    try {
-        Course& course = LMSManager::getInstance()->getCourse(index);
-        course.displayContents();
-    } catch (InvalidCourseIndexException&) {
-        cout << "Invalid course index.\n";
-    }
-}
-
 // Main function for login and menu display
 int main() {
-   LMSManager* lms = LMSManager::getInstance();
+    try {
+        LMSManager* lms = LMSManager::getInstance();
 
-    // Adding some courses
-    Course course1("Mathematics", "teacher1@example.com");
-    course1.addContent("Introduction to Algebra");
-    course1.addContent("Advanced Calculus");
+        // Sample data initialization
+        Course course1("Mathematics", "teacher1@example.com");
+        course1.addContent("Introduction to Algebra");
+        course1.addContent("Advanced Calculus");
 
-    Course course2("Physics", "teacher2@example.com");
-    course2.addContent("Newton's Laws");
-    course2.addContent("Thermodynamics");
+        Course course2("Physics", "teacher2@example.com");
+        course2.addContent("Newton's Laws");
+        course2.addContent("Thermodynamics");
 
-    lms->addCourse(course1);
-    lms->addCourse(course2);
+        lms->addCourse(course1);
+        lms->addCourse(course2);
 
-    // Creating users with shared pointers
-    users.push_back(make_shared<Admin>("admin1", "admin1@example.com", "adminpass"));
-    users.push_back(make_shared<Teacher>("teacher1", "teacher1@example.com", "teacherpass"));
-    users.push_back(make_shared<Teacher>("teacher2", "teacher2@example.com", "teacherpass"));
-    users.push_back(make_shared<Student>("student1", "student1@example.com", "studentpass"));
-    users.push_back(make_shared<Student>("student2", "student2@example.com", "studentpass"));
+        // Initialize users
+        vector<shared_ptr<User>> users;
+        users.push_back(make_shared<Admin>("admin1", "admin1@example.com", "adminpass"));
+        users.push_back(make_shared<Teacher>("teacher1", "teacher1@example.com", "teacherpass"));
+        users.push_back(make_shared<Teacher>("teacher2", "teacher2@example.com", "teacherpass"));
 
-    // Main login loop
-    string email, password;
-    bool loggedIn = false;
+        string email, password;
+        bool loggedIn = false;
 
-    while (true) {  // Outer loop to allow logging in with different roles
-        while (!loggedIn) {  // Inner loop for user login
-            system("cls");  // Clear screen
-            cout << "Learning Management System Login\n";
-            cout << "================================\n";
-            cout << "Enter your email (or type '0' to exit): ";
-            cin >> email;
+        while (true) {
+            while (!loggedIn) {
+                system("cls");
+                cout << "Learning Management System Login\n";
+                cout << "================================\n";
+                cout << "Enter your email (or type '0' to exit): ";
+                cin >> email;
 
-        if (email == "0") {
-        cout << "Exiting program...\n";
-        LMSManager::cleanup();  // Use cleanup instead of direct delete
-        return 0;
-    }
-            cout << "Enter your password: ";
-            cin >> password;
+                if (email == "0") {
+                    cout << "Exiting program...\n";
+                    return 0;
+                }
 
-            // Find matching user and check password
-            for (const auto& user : users) {
-                if (user->getEmail() == email && user->getPassword() == password) {
-                    loggedIn = true;
-                    user->displayMenu();  // Display appropriate menu based on user type
-                    break;
+                cout << "Enter your password: ";
+                cin >> password;
+
+                for (const auto& user : users) {
+                    if (user->getEmail() == email && user->getPassword() == password) {
+                        loggedIn = true;
+                        user->displayMenu();
+                        break;
+                    }
+                }
+
+                if (!loggedIn) {
+                    cout << "Invalid login credentials. Please try again.\n";
+                    system("pause");
                 }
             }
 
-            if (!loggedIn) {
-                cout << "Invalid login credentials. Please try again.\n";
-                system("pause");
+            char changeRole;
+            cout << "Do you want to log in as a different role? (y/n): ";
+            cin >> changeRole;
+
+            if (tolower(changeRole) == 'n') {
+                cout << "Logging out...\n";
+                break;
             }
-        }
-
-        // Ask if the user wants to login as a different role
-        char changeRole;
-        cout << "Do you want to log in as a different role? (y/n): ";
-        cin >> changeRole;
-
-        if (changeRole == 'n' || changeRole == 'N') {
-            cout << "Logging out...\n";
-            break;
-        } else {
-            loggedIn = false;  // Reset login status to allow another login
+            loggedIn = false;
         }
     }
-  LMSManager::cleanup(); 
+    catch (const exception& e) {
+        cerr << "Fatal error: " << e.what() << endl;
+        return 1;
+    }
+
     return 0;
 }
-
