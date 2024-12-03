@@ -196,6 +196,7 @@ private:
     vector<string> contents;
     vector<pair<string, int>> grades;
     vector<string> enrolledStudents;
+    
      
 
 public:
@@ -760,19 +761,44 @@ void Teacher::displayMenu() {
 }
 
 void Teacher::addGrade() {
+    system("cls");
     vector<Course>& courses = LMSManager::getInstance()->getCourses();
+    
     if (courses.empty()) {
         cout << "No courses available.\n";
-        return;
+        system("pause");
+        return; // Exit if no courses are available
     }
 
-    LMSManager::getInstance()->displayCourses();
+    // Store courses assigned to this teacher
+    vector<Course> assignedCourses;
+
+    // Filter courses to find those assigned to the current teacher
+    for (const auto& course : courses) {
+        if (course.getTeacherEmail() == getEmail()) {
+            assignedCourses.push_back(course);
+        }
+    }
+
+    // Check if there are any assigned courses
+    if (assignedCourses.empty()) {
+        cout << "You are not assigned to any courses. Cannot add grades.\n";
+        system("pause");
+        return; // Exit if no courses are assigned
+    }
+
+    // Display the list of assigned courses with 1-based indexing
+    cout << "Your Assigned Courses:\n";
+    for (size_t i = 0; i < assignedCourses.size(); ++i) {
+        cout << i + 1 << ". " << assignedCourses[i].getCourseName() << endl;
+    }
+
     int courseIndex = Validator::getValidatedIntInput(
-        "Enter course index (1-" + to_string(courses.size()) + "): ",
-        1, courses.size());
+        "Enter course index (1-" + to_string(assignedCourses.size()) + "): ",
+        1, assignedCourses.size());
 
     try {
-        Course& course = LMSManager::getInstance()->getCourse(courseIndex - 1);
+        Course& course = assignedCourses[courseIndex - 1]; // Get the selected course
         
         string studentEmail;
         bool validEmail = false;
@@ -797,7 +823,8 @@ void Teacher::addGrade() {
 
         if (!studentFound) {
             cout << "Student is not enrolled in this course.\n";
-            return;
+            system("pause");
+            return; // Exit if the student is not enrolled
         }
 
         int grade = Validator::getValidatedIntInput(
@@ -806,8 +833,10 @@ void Teacher::addGrade() {
 
         course.addGrade(studentEmail, grade);
         cout << "Grade added successfully for student: " << studentEmail << endl;
+        system("pause");
     } catch (const exception& e) {
         cout << e.what() << endl;
+        system("pause");
     }
 }
 
@@ -850,30 +879,58 @@ void Teacher::manageCourses() {
 
 void Teacher::viewAssignedStudents() {
     system("cls");
-    LMSManager::getInstance()->displayCourses();
+    
     vector<Course>& courses = LMSManager::getInstance()->getCourses();
     
     if (courses.empty()) {
         cout << "No courses available.\n";
         system("pause");
-        return;
+        return; // Exit if no courses are available
+    }
+
+    // Store courses assigned to this teacher
+    vector<Course> assignedCourses;
+
+    // Filter courses to find those assigned to the current teacher
+    for (const auto& course : courses) {
+        if (course.getTeacherEmail() == getEmail()) {
+            assignedCourses.push_back(course);
+        }
+    }
+
+    // Check if there are any assigned courses
+    if (assignedCourses.empty()) {
+        cout << "You are not assigned to any courses. Cannot view students.\n";
+        system("pause");
+        return; // Exit if no courses are assigned
+    }
+
+    // Display the list of assigned courses with 1-based indexing
+    cout << "Your Assigned Courses:\n";
+    for (size_t i = 0; i < assignedCourses.size(); ++i) {
+        cout << i + 1 << ". " << assignedCourses[i].getCourseName() << endl;
     }
 
     int index = Validator::getValidatedIntInput(
-        "Enter course index (1-" + to_string(courses.size()) + "): ",
-        1, courses.size());
+        "Enter course index (1-" + to_string(assignedCourses.size()) + "): ",
+        1, assignedCourses.size());
 
     try {
-        Course& course = LMSManager::getInstance()->getCourse(index - 1);
+    Course& course = assignedCourses[index - 1]; // Get the selected course
 
-        if (course.getTeacherEmail() != getEmail()) {
-            cout << "Error: You are not authorized to view students in this course.\n";
-            system("pause");
-            return;
-        }
+    // Check if there are any students in the course
+    const auto& students = course.getStudents();
+    cout << "Course: " << course.getCourseName() << " has " << students.size() << " students.\n"; // Debug print
 
+    if (students.empty()) {
+        system("pause");
+        cout << "There are no students enrolled in this course.\n";
+    } else {
+        // Display the students enrolled in the selected course
         course.displayStudents();
         system("pause");
+    }
+    
     } catch (const exception& e) {
         cout << e.what() << endl;
         system("pause");
@@ -881,7 +938,7 @@ void Teacher::viewAssignedStudents() {
 }
 void Teacher::addContent() {
     system("cls");
-    LMSManager::getInstance()->displayCourses(); // Display available courses
+    
     vector<Course>& courses = LMSManager::getInstance()->getCourses(); // Get all courses
 
     if (courses.empty()) {
@@ -890,19 +947,35 @@ void Teacher::addContent() {
         return; // Exit if no courses are available
     }
 
+    // Store courses assigned to this teacher
+    vector<Course> assignedCourses;
+
+    // Filter courses to find those assigned to the current teacher
+    for (const auto& course : courses) {
+        if (course.getTeacherEmail() == getEmail()) {
+            assignedCourses.push_back(course);
+        }
+    }
+
+    // Check if there are any assigned courses
+    if (assignedCourses.empty()) {
+        cout << "You are not assigned to any courses. Cannot add content.\n";
+        system("pause");
+        return; // Exit if no courses are assigned
+    }
+
+    // Display the list of assigned courses with 1-based indexing
+    cout << "Your Assigned Courses:\n";
+    for (size_t i = 0; i < assignedCourses.size(); ++i) {
+        cout << i + 1 << ". " << assignedCourses[i].getCourseName() << endl;
+    }
+
     int index = Validator::getValidatedIntInput(
-        "Enter course index (1-" + to_string(courses.size()) + "): ",
-        1, courses.size());
+        "Enter course index (1-" + to_string(assignedCourses.size()) + "): ",
+        1, assignedCourses.size());
 
     try {
-        Course& course = LMSManager::getInstance()->getCourse(index - 1); // Get the selected course
-
-        // Check if the teacher is assigned to this course
-        if (course.getTeacherEmail() != getEmail()) {
-            cout << "Error: You are not authorized to add content to this course.\n";
-            system("pause");
-            return;
-        }
+        Course& course = assignedCourses[index - 1]; // Get the selected course
 
         string content;
         cout << "Enter the content to add: ";
@@ -930,10 +1003,27 @@ void Teacher::viewCourse() {
         return;  // Exit the function if there are no courses
     }
 
-    // Display the list of courses with 1-based indexing
-    cout << "Courses:\n";
-    for (size_t i = 0; i < courses.size(); ++i) {
-        cout << i + 1 << ". " << courses[i].getCourseName() << endl;
+    // Store courses assigned to this teacher
+    vector<Course> assignedCourses;
+
+    // Filter courses to find those assigned to the current teacher
+    for (const auto& course : courses) {
+        if (course.getTeacherEmail() == this->getEmail()) {
+            assignedCourses.push_back(course);
+        }
+    }
+
+    // Check if there are any assigned courses
+    if (assignedCourses.empty()) {
+        cout << "No courses are assigned to you.\n";
+        system("pause");
+        return;  // Exit if no courses are assigned
+    }
+
+    // Display the list of assigned courses with 1-based indexing
+    cout << "Your Assigned Courses:\n";
+    for (size_t i = 0; i < assignedCourses.size(); ++i) {
+        cout << i + 1 << ". " << assignedCourses[i].getCourseName() << endl;
     }
 
     int index;
@@ -942,12 +1032,12 @@ void Teacher::viewCourse() {
 
     try {
         // Validate and adjust for 0-based indexing
-        if (index < 1 || index > courses.size()) {
+        if (index < 1 || index > assignedCourses.size()) {
             throw out_of_range("Invalid index");
         }
 
         // Get the course using 0-based index
-        Course& course = LMSManager::getInstance()->getCourse(index - 1);
+        Course& course = assignedCourses[index - 1];
         cout << "Viewing course: " << course.getCourseName() << endl;
         course.displayContents();
         system("pause");  // Wait for the user to see the course contents
